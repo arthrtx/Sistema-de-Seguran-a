@@ -12,7 +12,7 @@ entre os módulos.
 Feito e a funcionar:
 
 - login e logout com bloqueio temporário ao fim de 3 tentativas
-- registo de contas (utilizador ou administrador) com captura de fotografia para o Face ID
+- registo de contas (utilizador ou administrador)
 - lista de utilizadores com criar, editar e eliminar
 - módulo de controlo de acessos: permissões, histórico de logins e estatísticas
 - módulo de logs com registo por módulo, filtro, importação de ficheiros `.log` e
