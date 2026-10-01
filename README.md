@@ -32,7 +32,11 @@ ecrã vazio, os módulos estão por desenvolver:
 
 ## Como correr
 
-Windows, com Python 3.11 ou superior instalado:
+O executável já está compilado e anexado na **release v1.0**. É só ir a
+https://github.com/arthrtx/Sistema-de-Seguran-a/releases, descarregar o
+`SecuritySystem-v1.0.exe` e dar dois cliques. Não é preciso instalar Python nem mais nada.
+
+Quem quiser correr a partir do código (Windows, Python 3.11 ou superior):
 
 ```bat
 run.bat
@@ -44,8 +48,7 @@ Ou diretamente:
 python main.py
 ```
 
-Dependências: `tkinter` (vem com o Python) e `opencv-python`, para o Face ID e para o
-módulo de câmaras:
+Dependências: `tkinter` (vem com o Python) e `opencv-python`, para o Face ID:
 
 ```bash
 pip install opencv-python
@@ -90,16 +93,6 @@ base_dados/          SQLite: esquema, utilizadores, acessos, logs e migração
 
 O código está separado em três camadas: a interface não fala com a base de dados
 diretamente, passa sempre pelos módulos.
-
-## Gerar o executável
-
-```bash
-pip install pyinstaller
-pyinstaller login.spec
-```
-
-Sai um `dist/SecuritySystem.exe` com tudo incluído (Python, Tkinter e OpenCV), que funciona
-sem precisar de instalar nada. O `.exe` da versão atual está anexado na release v1.0.
 
 ## Notas
 
