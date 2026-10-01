@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# PyInstaller
+build/
+dist/
+
+# Dados do sistema (vivem em %LOCALAPPDATA%\SecuritySystem)
+*.db
+*.log
+*.json.migrado

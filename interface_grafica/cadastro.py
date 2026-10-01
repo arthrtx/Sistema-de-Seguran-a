@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
-import utilizadores
-from Camara import tirarFoto
+
+from modulos import utilizadores
+from modulos.Camara import tirarFoto
 
 # Código necessário para criar Administradores
 CODIGO_ADMIN = "admin"
@@ -9,8 +10,6 @@ CODIGO_ADMIN = "admin"
 COR_FUNDO = "#ECEFF4"
 COR_AZUL = "#1F3A5F"
 COR_BOTAO = "#2980B9"
-
-utilizadores.carregar_utilizadores()
 
 
 def criar():
@@ -31,42 +30,21 @@ def criar():
     # Se for administrador pede o código
     if tipo == "Administrador":
 
-        codigo = simpledialog.askstring(
-            "Código de Administrador",
-            "Introduza o código:",
-            show="*"
-        )
+        codigo = simpledialog.askstring("Código de Administrador", "Introduza o código:", show="*")
 
         if codigo != CODIGO_ADMIN:
-            messagebox.showerror(
-                "Erro",
-                "Código de administrador inválido."
-            )
+            messagebox.showerror("Erro", "Código de administrador inválido.")
             return
 
     messagebox.showinfo("Face ID", "Clique em OK para abrir a câmara.")
 
     caminho_foto = tirarFoto(username)
 
-    novo = {
-        "id": utilizadores.gerar_id(),
-        "nome": nome,
-        "username": username,
-        "password": password,
-        "tipo": tipo,
-        "foto": caminho_foto
-    }
-
-    utilizadores.utilizadores.append(novo)
-
-    utilizadores.guardar_utilizadores()
-    utilizadores.escrever_log(f"Utilizador {username} criado.")
+    utilizadores.criar(nome, username, password, tipo, caminho_foto)
 
     messagebox.showinfo("Sucesso", "Conta criada com sucesso!")
 
     janela.destroy()
-
-    import login
 
 
 def abrir():
@@ -83,12 +61,7 @@ def abrir():
     janela.geometry("500x550")
     janela.configure(bg=COR_FUNDO)
 
-    tk.Label(
-        janela,
-        text="CRIAR CONTA",
-        font=("Segoe UI", 20, "bold"),
-        bg=COR_FUNDO
-    ).pack(pady=20)
+    tk.Label(janela, text="CRIAR CONTA", font=("Segoe UI", 20, "bold"), bg=COR_FUNDO).pack(pady=20)
 
     tk.Label(janela, text="Nome", bg=COR_FUNDO).pack()
 
@@ -102,19 +75,11 @@ def abrir():
 
     tk.Label(janela, text="Password", bg=COR_FUNDO).pack()
 
-    entry_pass = tk.Entry(
-        janela,
-        show="*",
-        font=("Segoe UI", 12)
-    )
+    entry_pass = tk.Entry(janela, show="*", font=("Segoe UI", 12))
     entry_pass.pack(fill="x", padx=40, pady=5)
 
     # Tipo de conta
-    tk.Label(
-        janela,
-        text="Tipo",
-        bg=COR_FUNDO
-    ).pack(pady=10)
+    tk.Label(janela, text="Tipo", bg=COR_FUNDO).pack(pady=10)
 
     tipo_var = tk.StringVar(value="Utilizador")
 

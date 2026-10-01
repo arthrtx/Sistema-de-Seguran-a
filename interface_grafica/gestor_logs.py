@@ -1,33 +1,22 @@
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-import os
 from pathlib import Path
 import re
 import tkinter as tk
 from tkinter import messagebox, ttk, filedialog
 
-# =====================================================
-# CONFIGURAÇÃO DO CAMINHO DINÂMICO
-# =====================================================
-DIRETORIO_PROJETO = Path(__file__).parent.resolve()
-PASTA_LOGS = DIRETORIO_PROJETO / "logs"
-PASTA_LOGS.mkdir(parents=True, exist_ok=True)
+from modulos.config import PASTA_LOGS
+
+from base_dados import logs_db
 
 FORMATO_LOG = "%(asctime)s | %(levelname)s | %(message)s"
 
-logging.basicConfig(
-    level=logging.INFO,
-    format=FORMATO_LOG,
-    handlers=[logging.StreamHandler()]
-)
+logging.basicConfig(level=logging.INFO, format=FORMATO_LOG, handlers=[logging.StreamHandler()])
 
 MODULOS_PERMITIDOS = ["ALARMES", "SENSORES", "CAMARAS", "CONTROLO DE ACESSOS", "RECONHECIMENTO", "RELATORIOS", "BACKUPS", "LOGS"]
 NIVEIS_PERMITIDOS = ["INFO", "WARNING", "CRITICAL"]
 
-# =====================================================
-# MODELO DE DADOS
-# =====================================================
 @dataclass
 class RegistoLog:
     id_log: int
@@ -37,9 +26,6 @@ class RegistoLog:
     descricao: str
     nivel: str
 
-# =====================================================
-# CORE DO MÓDULO (Gestão de Logs por Módulo)
-# =====================================================
 class GestorLogs:
     def __init__(self):
         self.historico_logs = []
@@ -59,16 +45,16 @@ class GestorLogs:
             logger = logging.getLogger(nome_modulo)
             logger.setLevel(logging.INFO)
             logger.propagate = True
-            
+
             nome_ficheiro = nome_modulo.lower().replace(" ", "_")
             caminho_ficheiro = PASTA_LOGS / f"modulo_{nome_ficheiro}.log"
-            
+
             file_handler = logging.FileHandler(str(caminho_ficheiro), encoding="utf-8")
             file_handler.setFormatter(logging.Formatter(FORMATO_LOG))
-            
+
             logger.addHandler(file_handler)
             self._loggers_ativos[nome_modulo] = logger
-            
+
         return self._loggers_ativos[nome_modulo]
 
     def processar_linha_log(self, linha: str, modulo_padrao: str = "LOGS") -> bool:
@@ -76,15 +62,15 @@ class GestorLogs:
         try:
             if " | " not in linha:
                 return False
-                
+
             partes = linha.split(" | ")
             if len(partes) < 3:
                 return False
-                
+
             data_str = partes[0].split(",")[0].strip()
             nivel = partes[1].strip()
             resto = partes[2].strip()
-            
+
             if resto.startswith("->") and ":" in resto:
                 evento_partes = resto.replace("->", "", 1).split(":", 1)
                 tipo_evento = evento_partes[0].strip().upper()
@@ -92,7 +78,7 @@ class GestorLogs:
             else:
                 tipo_evento = "SISTEMA"
                 descricao = resto
-                
+
             try:
                 dt = datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S")
             except ValueError:
@@ -117,14 +103,14 @@ class GestorLogs:
         caminho = Path(caminho_ficheiro)
         if not caminho.exists():
             return 0
-            
+
         nome = caminho.stem.lower()
         modulo_detetado = "LOGS"
         for m in MODULOS_PERMITIDOS:
             if m.lower().replace(" ", "_") in nome:
                 modulo_detetado = m
                 break
-                
+
         contador = 0
         with open(caminho, "r", encoding="utf-8") as f:
             for linha in f:
@@ -135,7 +121,7 @@ class GestorLogs:
     def registar(self, modulo: str, tipo_evento: str, descricao: str, nivel: str = "INFO"):
         modulo = str(modulo or "").upper().strip()
         nivel_upper = str(nivel or "").upper().strip()
-        
+
         if modulo not in MODULOS_PERMITIDOS:
             return False
         if nivel_upper not in NIVEIS_PERMITIDOS:
@@ -151,13 +137,18 @@ class GestorLogs:
             descricao=descricao.strip(),
             nivel=nivel_upper
         )
-        
+
         self.historico_logs.append(novo_log)
         self.proximo_id += 1
-        
+
+        try:
+            logs_db.registar(modulo, novo_log.tipo_evento, novo_log.descricao, nivel_upper)
+        except Exception as erro:
+            print("Erro ao gravar log na base de dados:", erro)
+
         logger_dedicado = self._obter_logger_modulo(modulo)
         msg_formatada = f"-> {novo_log.tipo_evento}: {novo_log.descricao}"
-        
+
         if nivel_upper == "WARNING":
             logger_dedicado.warning(msg_formatada)
         elif nivel_upper == "CRITICAL":
@@ -170,8 +161,25 @@ class GestorLogs:
         for log in self.historico_logs:
             if log.id_log == id_log:
                 self.historico_logs.remove(log)
+                logs_db.apagar_por_id(id_log)
                 return True
         return False
+
+    def carregar_do_bd(self, limite: int = 500):
+        """Carrega da base de dados o histórico das sessões anteriores."""
+        for linha in logs_db.listar(limite):
+            self.historico_logs.append(RegistoLog(
+                id_log=linha["id"],
+                data_hora=datetime.strptime(linha["data_hora"], "%Y-%m-%d %H:%M:%S"),
+                modulo=linha["modulo"],
+                tipo_evento=linha["tipo_evento"],
+                descricao=linha["descricao"],
+                nivel=linha["nivel"]
+            ))
+
+            self.proximo_id = max(self.proximo_id, linha["id"] + 1)
+
+        return len(self.historico_logs)
 
     def listar_todos(self):
         return self.historico_logs
@@ -188,13 +196,10 @@ class GestorLogs:
             return f.readlines()
 
 
-# =====================================================
-# INTERFACE GRÁFICA ADAPTADA (HÍBRIDA)
-# =====================================================
 class InterfaceGraficaLogs:
     def __init__(self, gestor: GestorLogs, master_frame: tk.Frame = None):
         self.gestor = gestor
-        
+
         # Se receber um master_frame, acopla-se a ele. Caso contrário, gera uma janela própria.
         if master_frame:
             self.root = master_frame
@@ -207,7 +212,7 @@ class InterfaceGraficaLogs:
             self.style = ttk.Style()
             self.style.theme_use("clam")
             self.is_subframe = False
-        
+
         self._construir_interface()
         self.atualizar_tabela_memoria()
 
@@ -216,7 +221,6 @@ class InterfaceGraficaLogs:
         self.main_container = ttk.Frame(self.root, padding=10)
         self.main_container.pack(fill=tk.BOTH, expand=True)
 
-        # --- PAINEL ESQUERDO ---
         painel_esquerdo = ttk.LabelFrame(self.main_container, text=" Operações ", padding=15)
         painel_esquerdo.pack(side=tk.LEFT, fill=tk.Y, padx=10, pady=10)
 
@@ -241,22 +245,20 @@ class InterfaceGraficaLogs:
 
         btn_gravar = ttk.Button(painel_esquerdo, text="Gravar Log Manual", command=self.submeter_log)
         btn_gravar.pack(fill=tk.X, ipady=3, pady=(0, 5))
-        
+
         btn_apagar = ttk.Button(painel_esquerdo, text="Apagar Selecionado", command=self.apagar_log_selecionado)
         btn_apagar.pack(fill=tk.X, ipady=3, pady=(0, 25))
 
-        # --- CENTRAL DE IMPORTAÇÃO ---
         lbl_importar = ttk.Label(painel_esquerdo, text="Central de Importação:", font=("Helvetica", 9, "bold"))
         lbl_importar.pack(anchor=tk.W, pady=(5, 5))
 
         btn_importar_hub = ttk.Button(
-            painel_esquerdo, 
-            text="Importar Logs (Ficheiro/Pasta)...", 
+            painel_esquerdo,
+            text="Importar Logs (Ficheiro/Pasta)...",
             command=self.abrir_hub_importacao
         )
         btn_importar_hub.pack(fill=tk.X, ipady=5)
 
-        # --- PAINEL DIREITO ---
         painel_direito = ttk.Frame(self.main_container, padding=10)
         painel_direito.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
 
@@ -277,7 +279,7 @@ class InterfaceGraficaLogs:
 
         colunas = ("id", "data", "nivel", "modulo", "evento", "descricao")
         self.tabela = ttk.Treeview(aba_tabela, columns=colunas, show="headings")
-        
+
         self.tabela.heading("id", text="ID")
         self.tabela.heading("data", text="Data/Hora")
         self.tabela.heading("nivel", text="Nível")
@@ -302,8 +304,8 @@ class InterfaceGraficaLogs:
         janela_hub.title("Modo de Importação")
         janela_hub.geometry("380x150")
         janela_hub.resizable(False, False)
-        janela_hub.transient(self.root.winfo_toplevel())  
-        janela_hub.grab_set()          
+        janela_hub.transient(self.root.winfo_toplevel())
+        janela_hub.grab_set()
 
         lbl = ttk.Label(janela_hub, text="O que deseja importar para o sistema?", font=("Helvetica", 10, "bold"))
         lbl.pack(pady=15)
@@ -336,7 +338,7 @@ class InterfaceGraficaLogs:
         total_linhas = 0
         for f in ficheiros:
             total_linhas += self.gestor.carregar_de_ficheiro(Path(f))
-            
+
         self.atualizar_tabela_memoria()
         messagebox.showinfo("Sucesso", f"Importação concluída!\nForam carregados {total_linhas} registos com sucesso.")
 
@@ -383,10 +385,10 @@ class InterfaceGraficaLogs:
         if not item_selecionado:
             messagebox.showwarning("Aviso", "Por favor, selecione primeiro um log na tabela para o apagar.")
             return
-        
+
         valores = self.tabela.item(item_selecionado, "values")
         id_log = int(valores[0])
-        
+
         if messagebox.askyesno("Confirmar", f"Tem a certeza que deseja apagar o log com ID {id_log} da memória?"):
             if self.gestor.apagar_por_id(id_log):
                 messagebox.showinfo("Sucesso", f"O log com o ID {id_log} foi removido.")
@@ -435,15 +437,13 @@ class InterfaceGraficaLogs:
         if not self.is_subframe:
             self.root.mainloop()
 
-# =====================================================
-# FUNÇÕES OBRIGATÓRIAS DO ENUNCIADO
-# =====================================================
 _gestor_global = None
 
 def inicializar():
     global _gestor_global
     if _gestor_global is None:
         _gestor_global = GestorLogs()
+        _gestor_global.carregar_do_bd()
         _gestor_global.registar("LOGS", "INICIALIZACAO", "Módulo de logs múltiplos inicializado.")
     return _gestor_global
 
